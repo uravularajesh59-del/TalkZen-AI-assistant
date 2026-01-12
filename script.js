@@ -4,7 +4,7 @@ import { checkAuth, login, loginAsGuest, logout } from './auth.js';
 // Configuration
 // Configuration
 let GEMINI_API_KEY = API_KEY || localStorage.getItem('talkzen_api_key');
-const getApiUrl = () => `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+const getApiUrl = () => `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 // System Prompt
 const SYSTEM_PROMPT = "You are TalkZen-AI, a serene, professional, and highly capable AI Assistant. You are currently assisting your 'Admin' (the user). You can perform multiple tasks including coding, writing, reasoning, and multi-language translation. Your tone is helpful and efficient.";
