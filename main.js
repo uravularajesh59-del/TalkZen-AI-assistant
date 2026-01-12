@@ -3,7 +3,8 @@ import { checkAuth, login, loginAsGuest, logout } from './auth.js';
 
 // Configuration
 let GEMINI_API_KEY = API_KEY || localStorage.getItem('talkzen_api_key');
-const getApiUrl = () => `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+let currentModel = localStorage.getItem('talkzen_model') || 'gemini-1.5-flash-latest';
+const getApiUrl = () => `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${GEMINI_API_KEY}`;
 
 // System Prompt
 const SYSTEM_PROMPT = "You are TalkZen-AI, a serene, professional, and highly capable AI Assistant. You are currently assisting your 'Admin' (the user). You can perform multiple tasks including coding, writing, reasoning, and multi-language translation. Your tone is helpful and efficient.";
@@ -14,6 +15,9 @@ let currentChatId = null;
 let isGenerating = false;
 let abortController = null;
 let currentUser = null;
+let attachments = []; // For file uploads
+let isRecording = false; // For voice input
+let recognition = null; // Speech recognition instance
 
 // Guest Limits
 const GUEST_MSG_LIMIT = 5;
@@ -43,6 +47,13 @@ const toastContainer = document.getElementById('toast-container');
 const splashScreen = document.getElementById('splash-screen');
 const appContainer = document.getElementById('app-container');
 const loginModal = document.getElementById('login-modal');
+const modelSelector = document.getElementById('model-selector');
+const uploadBtn = document.getElementById('upload-btn');
+const fileInput = document.getElementById('file-input');
+const voiceBtn = document.getElementById('voice-btn');
+const attachmentPreview = document.getElementById('attachment-preview');
+const dragOverlay = document.getElementById('drag-overlay');
+const themeToggle = document.getElementById('theme-toggle');
 
 // Initialization
 lucide.createIcons();
@@ -87,6 +98,13 @@ function showApp() {
     appContainer.style.display = 'flex';
     updateProfileUI();
     renderHistory();
+
+    // Initialize new features
+    modelSelector.value = currentModel;
+    initTheme();
+    initVoiceRecognition();
+    initDragAndDrop();
+
     if (chats.length > 0) {
         loadChat(chats[0].id);
     } else {
@@ -262,7 +280,16 @@ function loadChat(id) {
     if (!chat) return;
     chatContainer.innerHTML = '';
     chatContainer.classList.add('has-messages');
-    chat.messages.forEach(m => addMessageToUI(m.content, m.role === 'user'));
+    chat.messages.forEach((m, index) => {
+        const row = addMessageToUI(m.content, m.role === 'user');
+        // Update rating buttons if message has rating
+        if (m.rating) {
+            const likeBtn = row.querySelector('[title="Like"]');
+            const dislikeBtn = row.querySelector('[title="Dislike"]');
+            if (likeBtn) likeBtn.classList.toggle('liked', m.rating === 'like');
+            if (dislikeBtn) dislikeBtn.classList.toggle('disliked', m.rating === 'dislike');
+        }
+    });
     renderHistory();
     scrollToBottom();
     sidebar.classList.remove('open');
@@ -334,6 +361,13 @@ function addMessageToUI(text, isUser, isLoading = false) {
         </div>
     `;
     chatContainer.appendChild(row);
+
+    // Add message actions if not loading
+    if (!isLoading && getActiveChat()) {
+        const messageIndex = chatContainer.children.length - 1;
+        addMessageActions(row, isUser, messageIndex);
+    }
+
     lucide.createIcons();
     attachCodeCopy();
     return row;
@@ -452,6 +486,443 @@ function checkAuthInit() {
     }
 }
 
+// ============================================
+// NEW CHATGPT-LIKE FEATURES
+// ============================================
+
+// Model Selection
+function switchModel() {
+    currentModel = modelSelector.value;
+    localStorage.setItem('talkzen_model', currentModel);
+    showToast(`Switched to ${modelSelector.options[modelSelector.selectedIndex].text}`, 'success');
+}
+
+// File Upload Handling
+function handleFileUpload(files) {
+    Array.from(files).forEach(file => {
+        if (file.size > 10 * 1024 * 1024) { // 10MB limit
+            showToast('File too large. Max 10MB', 'error');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const attachment = {
+                name: file.name,
+                size: formatFileSize(file.size),
+                type: file.type,
+                data: e.target.result
+            };
+            attachments.push(attachment);
+            renderAttachments();
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+function renderAttachments() {
+    if (attachments.length === 0) {
+        attachmentPreview.style.display = 'none';
+        return;
+    }
+
+    attachmentPreview.style.display = 'flex';
+    attachmentPreview.innerHTML = attachments.map((att, index) => `
+        <div class="attachment-card">
+            <div class="attachment-thumbnail">
+                ${att.type.startsWith('image/') ? `<img src="${att.data}" alt="${att.name}">` : `<i data-lucide="file-text"></i>`}
+            </div>
+            <div class="attachment-info">
+                <div class="attachment-name">${att.name}</div>
+                <div class="attachment-size">${att.size}</div>
+            </div>
+            <div class="remove-attachment" onclick="removeAttachment(${index})">
+                <i data-lucide="x" size="12"></i>
+            </div>
+        </div>
+    `).join('');
+    lucide.createIcons();
+}
+
+function removeAttachment(index) {
+    attachments.splice(index, 1);
+    renderAttachments();
+}
+
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+// Voice Input
+function initVoiceRecognition() {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            userInput.value = transcript;
+            userInput.dispatchEvent(new Event('input'));
+            stopVoiceRecording();
+        };
+
+        recognition.onerror = (event) => {
+            console.error('Speech recognition error:', event.error);
+            showToast('Voice input failed', 'error');
+            stopVoiceRecording();
+        };
+
+        recognition.onend = () => {
+            stopVoiceRecording();
+        };
+    }
+}
+
+function startVoiceRecording() {
+    if (!recognition) {
+        showToast('Voice input not supported in this browser', 'error');
+        return;
+    }
+
+    isRecording = true;
+    voiceBtn.classList.add('voice-recording');
+    recognition.start();
+    showToast('Listening...', 'info');
+}
+
+function stopVoiceRecording() {
+    if (recognition && isRecording) {
+        isRecording = false;
+        voiceBtn.classList.remove('voice-recording');
+        recognition.stop();
+    }
+}
+
+function toggleVoiceInput() {
+    if (isRecording) {
+        stopVoiceRecording();
+    } else {
+        startVoiceRecording();
+    }
+}
+
+// Drag and Drop
+function initDragAndDrop() {
+    let dragCounter = 0;
+
+    document.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        dragCounter++;
+        if (dragCounter === 1) {
+            dragOverlay.classList.add('active');
+        }
+    });
+
+    document.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        dragCounter--;
+        if (dragCounter === 0) {
+            dragOverlay.classList.remove('active');
+        }
+    });
+
+    document.addEventListener('dragover', (e) => {
+        e.preventDefault();
+    });
+
+    document.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dragCounter = 0;
+        dragOverlay.classList.remove('active');
+
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleFileUpload(files);
+        }
+    });
+}
+
+// Message Actions
+function addMessageActions(messageRow, isUser, messageIndex) {
+    const actions = document.createElement('div');
+    actions.className = 'message-actions';
+
+    if (isUser) {
+        actions.innerHTML = `
+            <button class="action-btn" onclick="copyMessage(${messageIndex})" title="Copy">
+                <i data-lucide="copy" size="14"></i>
+            </button>
+            <button class="action-btn" onclick="editMessage(${messageIndex})" title="Edit">
+                <i data-lucide="edit-2" size="14"></i>
+            </button>
+        `;
+    } else {
+        actions.innerHTML = `
+            <button class="action-btn" onclick="copyMessage(${messageIndex})" title="Copy">
+                <i data-lucide="copy" size="14"></i>
+            </button>
+            <button class="action-btn" onclick="regenerateResponse(${messageIndex})" title="Regenerate">
+                <i data-lucide="refresh-cw" size="14"></i>
+            </button>
+            <button class="action-btn" onclick="rateMessage(${messageIndex}, 'like')" title="Like">
+                <i data-lucide="thumbs-up" size="14"></i>
+            </button>
+            <button class="action-btn" onclick="rateMessage(${messageIndex}, 'dislike')" title="Dislike">
+                <i data-lucide="thumbs-down" size="14"></i>
+            </button>
+        `;
+    }
+
+    messageRow.querySelector('.message-content').appendChild(actions);
+    lucide.createIcons();
+}
+
+function copyMessage(index) {
+    const chat = getActiveChat();
+    if (!chat || !chat.messages[index]) return;
+
+    const text = chat.messages[index].content;
+    navigator.clipboard.writeText(text).then(() => {
+        showToast('Copied to clipboard', 'success');
+    });
+}
+
+function editMessage(index) {
+    const chat = getActiveChat();
+    if (!chat || !chat.messages[index]) return;
+
+    const messageRow = chatContainer.children[index];
+    const textContent = messageRow.querySelector('.text-content');
+    const originalText = chat.messages[index].content;
+
+    textContent.innerHTML = `
+        <textarea class="edit-input">${originalText}</textarea>
+        <div class="edit-actions">
+            <button class="edit-cancel-btn" onclick="cancelEdit(${index})">Cancel</button>
+            <button class="edit-save-btn" onclick="saveEdit(${index})">Save & Regenerate</button>
+        </div>
+    `;
+    messageRow.classList.add('message-editing');
+}
+
+function cancelEdit(index) {
+    const chat = getActiveChat();
+    if (!chat) return;
+
+    const messageRow = chatContainer.children[index];
+    const textContent = messageRow.querySelector('.text-content');
+    textContent.innerHTML = formatText(chat.messages[index].content);
+    messageRow.classList.remove('message-editing');
+    attachCodeCopy();
+}
+
+function saveEdit(index) {
+    const chat = getActiveChat();
+    if (!chat) return;
+
+    const messageRow = chatContainer.children[index];
+    const newText = messageRow.querySelector('.edit-input').value.trim();
+
+    if (!newText) return;
+
+    // Update message
+    chat.messages[index].content = newText;
+
+    // Remove all messages after this one
+    chat.messages = chat.messages.slice(0, index + 1);
+    updateStorage();
+
+    // Reload chat and regenerate
+    loadChat(chat.id);
+
+    // Trigger new response
+    setTimeout(() => {
+        sendMessage(newText, true);
+    }, 100);
+}
+
+function regenerateResponse(index) {
+    const chat = getActiveChat();
+    if (!chat || index < 1) return;
+
+    // Find the user message before this AI response
+    const userMessageIndex = index - 1;
+    const userMessage = chat.messages[userMessageIndex];
+
+    if (!userMessage || userMessage.role !== 'user') return;
+
+    // Remove this AI response and all after
+    chat.messages = chat.messages.slice(0, index);
+    updateStorage();
+
+    // Reload and regenerate
+    loadChat(chat.id);
+    setTimeout(() => {
+        sendMessage(userMessage.content, true);
+    }, 100);
+}
+
+function rateMessage(index, rating) {
+    const chat = getActiveChat();
+    if (!chat || !chat.messages[index]) return;
+
+    // Store rating
+    if (!chat.messages[index].rating) {
+        chat.messages[index].rating = rating;
+    } else if (chat.messages[index].rating === rating) {
+        delete chat.messages[index].rating;
+    } else {
+        chat.messages[index].rating = rating;
+    }
+
+    updateStorage();
+
+    // Update UI
+    const messageRow = chatContainer.children[index];
+    const likeBtn = messageRow.querySelector('[title="Like"]');
+    const dislikeBtn = messageRow.querySelector('[title="Dislike"]');
+
+    if (likeBtn) likeBtn.classList.toggle('liked', chat.messages[index].rating === 'like');
+    if (dislikeBtn) dislikeBtn.classList.toggle('disliked', chat.messages[index].rating === 'dislike');
+
+    showToast('Feedback recorded', 'success');
+}
+
+// Theme Toggle
+function toggleTheme() {
+    document.body.classList.toggle('light-theme');
+    const isLight = document.body.classList.contains('light-theme');
+    localStorage.setItem('talkzen_theme', isLight ? 'light' : 'dark');
+
+    const icon = themeToggle.querySelector('i');
+    icon.setAttribute('data-lucide', isLight ? 'moon' : 'sun');
+    lucide.createIcons();
+}
+
+function initTheme() {
+    const savedTheme = localStorage.getItem('talkzen_theme');
+    if (savedTheme === 'light') {
+        document.body.classList.add('light-theme');
+        const icon = themeToggle.querySelector('i');
+        icon.setAttribute('data-lucide', 'moon');
+        lucide.createIcons();
+    }
+}
+
+// Enhanced Send Message with Multimodal Support
+async function sendMessageWithAttachments(text, isRegenerate = false) {
+    if (!text && attachments.length === 0) return;
+    if (isGenerating && !isRegenerate) return;
+
+    // Build message content
+    const messageText = text || userInput.value.trim();
+
+    // UI Updates
+    if (!isRegenerate) {
+        const welcomeScreen = document.querySelector('.welcome-screen');
+        if (welcomeScreen) {
+            welcomeScreen.remove();
+            chatContainer.classList.add('has-messages');
+        }
+
+        addMessageToUI(messageText, true);
+        userInput.value = '';
+        userInput.style.height = 'auto';
+
+        // Clear attachments after sending
+        attachments = [];
+        renderAttachments();
+    }
+
+    scrollToBottom();
+
+    // API Key check
+    if (!GEMINI_API_KEY) {
+        if (messageText.trim().startsWith('AIza')) {
+            const key = messageText.trim();
+            localStorage.setItem('talkzen_api_key', key);
+            GEMINI_API_KEY = key;
+            addMessageToUI("🔑 **API Key Detected!**\n\nSaving your key and reloading...", false);
+            setTimeout(() => window.location.reload(), 2000);
+            return;
+        }
+
+        setTimeout(() => {
+            const errorMsg = "⚠️ **System Error:** API Key is missing.\n\n**To fix this immediately:**\n1. Copy your Google Gemini API Key.\n2. **PASTE IT HERE** in this chat.\n\nI will automatically save it for you.";
+            addMessageToUI(errorMsg, false);
+            scrollToBottom();
+        }, 500);
+        return;
+    }
+
+    // Guest limit check
+    if (currentUser.type === 'guest') {
+        if (guestMsgCount >= GUEST_MSG_LIMIT) {
+            setTimeout(() => {
+                addMessageToUI("🔒 **Guest Limit Reached**\n\nPlease login to continue chatting.", false);
+                showLoginModal();
+                scrollToBottom();
+            }, 500);
+            return;
+        }
+        guestMsgCount++;
+        localStorage.setItem('talkzen_guest_count', guestMsgCount);
+    }
+
+    // Create or update chat
+    if (!getActiveChat() || currentChatId === null) {
+        currentChatId = Date.now().toString();
+        chats.unshift({ id: currentChatId, title: messageText.substring(0, 30), messages: [] });
+    } else if (getActiveChat().messages.length === 0) {
+        getActiveChat().title = messageText.substring(0, 30);
+    }
+
+    isGenerating = true;
+    sendBtn.disabled = true;
+    stopBtn.style.display = 'flex';
+    abortController = new AbortController();
+
+    const loadingMsg = addMessageToUI('', false, true);
+    scrollToBottom();
+
+    try {
+        const responseText = await getGeminiResponse(messageText, getActiveChat().messages);
+        loadingMsg.remove();
+
+        const aiMsg = addMessageToUI('', false);
+        const textElement = aiMsg.querySelector('.text-content');
+        textElement.classList.add('streaming-text');
+
+        // Save to state
+        getActiveChat().messages.push({ role: 'user', content: messageText });
+        getActiveChat().messages.push({ role: 'ai', content: responseText });
+        updateStorage();
+
+        // Streaming effect
+        await streamText(textElement, responseText);
+        textElement.classList.remove('streaming-text');
+
+        renderHistory();
+    } catch (error) {
+        console.error(error);
+        if (loadingMsg) loadingMsg.remove();
+
+        let errorMessage = 'Error: ' + error.message;
+        errorMessage += '\n\n(Debug: ' + new Date().toLocaleTimeString() + ')';
+        addMessageToUI(errorMessage, false);
+    } finally {
+        isGenerating = false;
+        sendBtn.disabled = userInput.value.trim() === '';
+        stopBtn.style.display = 'none';
+        scrollToBottom();
+    }
+}
+
 // --- Attach to Window (Export) ---
 window.showLoginModal = showLoginModal;
 window.hideLoginModal = hideLoginModal;
@@ -466,6 +937,15 @@ window.loadChat = loadChat;
 window.deleteChat = deleteChat;
 window.clearAllChats = clearAllChats;
 window.copyCode = copyCode;
+
+// New ChatGPT-like features
+window.removeAttachment = removeAttachment;
+window.copyMessage = copyMessage;
+window.editMessage = editMessage;
+window.cancelEdit = cancelEdit;
+window.saveEdit = saveEdit;
+window.regenerateResponse = regenerateResponse;
+window.rateMessage = rateMessage;
 
 // --- Event Listeners with Local References ---
 userInput.addEventListener('input', function () {
@@ -484,6 +964,17 @@ userInput.addEventListener('keydown', (e) => {
 sendBtn.addEventListener('click', sendMessage);
 stopBtn.addEventListener('click', stopGenerating);
 toggleSidebarBtn.addEventListener('click', () => sidebar.classList.toggle('open'));
+
+// New feature event listeners
+modelSelector.addEventListener('change', switchModel);
+uploadBtn.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) {
+        handleFileUpload(e.target.files);
+    }
+});
+voiceBtn.addEventListener('click', toggleVoiceInput);
+themeToggle.addEventListener('click', toggleTheme);
 
 // Run Init
 checkAuthInit();

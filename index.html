@@ -123,6 +123,14 @@
                 </button>
                 <h1 id="chat-title">New Chat</h1>
                 <div class="header-actions">
+                    <select id="model-selector" class="model-selector">
+                        <option value="gemini-1.5-flash-latest">Gemini 1.5 Flash</option>
+                        <option value="gemini-1.5-pro-latest">Gemini 1.5 Pro</option>
+                        <option value="gemini-pro-vision">Gemini Pro Vision</option>
+                    </select>
+                    <button class="icon-btn" id="theme-toggle" title="Toggle theme">
+                        <i data-lucide="sun"></i>
+                    </button>
                     <button class="icon-btn">
                         <i data-lucide="share-2"></i>
                     </button>
@@ -153,7 +161,18 @@
             </div>
 
             <footer class="chat-input-area">
+                <div id="attachment-preview" class="attachment-preview" style="display: none;"></div>
                 <div class="input-container">
+                    <div class="input-actions-left">
+                        <input type="file" id="file-input" accept="image/*,.pdf,.doc,.docx,.txt" style="display: none;"
+                            multiple>
+                        <button class="icon-btn" id="upload-btn" title="Upload files">
+                            <i data-lucide="paperclip"></i>
+                        </button>
+                        <button class="icon-btn" id="voice-btn" title="Voice input">
+                            <i data-lucide="mic"></i>
+                        </button>
+                    </div>
                     <textarea id="user-input" placeholder="Message TalkZen-AI Assistant..." rows="1"></textarea>
                     <div class="input-actions">
                         <button id="stop-btn" class="stop-btn" style="display: none;">
@@ -175,7 +194,16 @@
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
-    <script type="module" src="main.js?v=4.1"></script>
+    <!-- Drag and Drop Overlay -->
+    <div id="drag-overlay" class="drag-overlay">
+        <div class="drag-content">
+            <i data-lucide="upload-cloud" size="64"></i>
+            <h2>Drop files here</h2>
+            <p>Images, PDFs, and documents supported</p>
+        </div>
+    </div>
+
+    <script type="module" src="main.js?v=4.2"></script>
 </body>
 
 </html>
