@@ -118,29 +118,20 @@
         </main>
     </div>
 
-    <!-- Settings Modal -->
+    <!-- Login / Auth Modal -->
     <div id="settings-modal" class="modal-overlay">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Settings</h2>
-                <button class="icon-btn" onclick="toggleSettingsModal(false)">
-                    <i data-lucide="x"></i>
-                </button>
+        <div class="modal-content auth-modal">
+            <div class="modal-header auth-header">
+                <h2>Welcome Back</h2>
             </div>
             <div class="modal-body">
                 <div class="settings-group">
-                    <label for="api-key-input">Gemini API Key</label>
                     <div class="api-input-wrapper">
-                        <input type="password" id="api-key-input" placeholder="Enter your Gemini API key...">
-                        <button class="toggle-visibility" onclick="toggleApiKeyVisibility()">
-                            <i data-lucide="eye" id="eye-icon"></i>
-                        </button>
+                        <input type="password" id="api-key-input" placeholder="Enter your Access Key...">
                     </div>
-                    <p class="settings-hint">Get your key from <a href="https://aistudio.google.com/"
-                            target="_blank">Google AI Studio</a>. It is saved locally on your browser.</p>
                 </div>
                 <div class="settings-actions">
-                    <button class="save-btn" onclick="saveSettings()">Save Configuration</button>
+                    <button class="save-btn" onclick="saveSettings()">Start Chatting</button>
                 </div>
             </div>
         </div>

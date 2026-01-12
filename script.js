@@ -1,5 +1,7 @@
 // API Configuration
-let GEMINI_API_KEY = localStorage.getItem('talkzen_api_key') || '';
+// You can hardcode your key here to bypass the login screen
+const DEFAULT_API_KEY = '';
+let GEMINI_API_KEY = DEFAULT_API_KEY || localStorage.getItem('talkzen_api_key');
 const getApiUrl = () => `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 // System Prompt
@@ -46,12 +48,11 @@ if (chats.length > 0) {
 
 // Check for API Key on load
 if (!GEMINI_API_KEY) {
-    setTimeout(() => {
-        showToast('Please set your Gemini API Key in Settings to start.', 'info');
-        toggleSettingsModal(true);
-    }, 1000);
+    // Show Login Modal
+    toggleSettingsModal(true);
 } else {
-    apiKeyInput.value = GEMINI_API_KEY;
+    // If key exists, ensure modal is hidden
+    toggleSettingsModal(false);
 }
 
 // Event Listeners
@@ -72,24 +73,12 @@ sendBtn.addEventListener('click', sendMessage);
 stopBtn.addEventListener('click', stopGenerating);
 toggleSidebarBtn.addEventListener('click', () => sidebar.classList.toggle('open'));
 
-// Settings Modal Functions
+// Auth Modal Functions
 function toggleSettingsModal(show) {
     settingsModal.classList.toggle('active', show);
     if (show) {
-        apiKeyInput.value = GEMINI_API_KEY;
+        apiKeyInput.focus();
     }
-}
-
-function toggleApiKeyVisibility() {
-    const icon = document.getElementById('eye-icon');
-    if (apiKeyInput.type === 'password') {
-        apiKeyInput.type = 'text';
-        icon.setAttribute('data-lucide', 'eye-off');
-    } else {
-        apiKeyInput.type = 'password';
-        icon.setAttribute('data-lucide', 'eye');
-    }
-    lucide.createIcons();
 }
 
 function saveSettings() {
@@ -98,9 +87,9 @@ function saveSettings() {
         GEMINI_API_KEY = newKey;
         localStorage.setItem('talkzen_api_key', newKey);
         toggleSettingsModal(false);
-        showToast('Configuration saved successfully!', 'success');
+        showToast('Welcome to TalkZen-AI', 'success');
     } else {
-        showToast('Please enter a valid API key.', 'error');
+        showToast('Please enter a valid Access Key.', 'error');
     }
 }
 

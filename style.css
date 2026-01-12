@@ -925,3 +925,54 @@ body {
 .save-btn:hover::after {
     left: 100%;
 }
+
+/* Auth Modal Specifics */
+.auth-modal {
+    max-width: 400px;
+    text-align: center;
+    background: rgba(20, 20, 20, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.auth-header {
+    justify-content: center;
+    border-bottom: none;
+    padding-bottom: 10px;
+    padding-top: 40px;
+}
+
+.auth-header h2 {
+    font-size: 1.8rem;
+    letter-spacing: -0.5px;
+    background: linear-gradient(135deg, #fff, #a0a0a0);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.auth-modal .modal-body {
+    padding: 20px 40px 40px;
+}
+
+.auth-modal .api-input-wrapper input {
+    text-align: center;
+    font-size: 1rem;
+    padding: 16px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+}
+
+.auth-modal .api-input-wrapper input:focus {
+    transform: scale(1.02);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--accent-violet);
+    box-shadow: 0 0 20px rgba(123, 104, 238, 0.2);
+}
+
+.auth-modal .save-btn {
+    margin-top: 20px;
+    padding: 16px;
+    font-size: 1rem;
+    letter-spacing: 0.5px;
+}
