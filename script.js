@@ -47,28 +47,16 @@ const loginModal = document.getElementById('login-modal');
 // Initialization
 lucide.createIcons();
 
-// Auth Check on Load
-function initApp() {
-    currentUser = checkAuth();
-    if (currentUser) {
-        showApp();
-    } else {
-        // Show Splash (default)
-    }
+// --- Auth Functions ---
+function showLoginModal() {
+    loginModal.classList.add('active');
 }
 
-initApp();
-
-// Auth Functions (Attached to Window for HTML access)
-window.showLoginModal = () => {
-    loginModal.classList.add('active');
-};
-
-window.hideLoginModal = () => {
+function hideLoginModal() {
     loginModal.classList.remove('active');
-};
+}
 
-window.handleLogin = () => {
+function handleLogin() {
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
 
@@ -81,18 +69,19 @@ window.handleLogin = () => {
     } else {
         showToast(result.message, 'error');
     }
-};
+}
 
-window.handleGuestAccess = () => {
+function handleGuestAccess() {
     currentUser = loginAsGuest();
     showToast('Entered as Guest', 'info');
     showApp();
-};
+}
 
-window.handleLogout = () => {
+function handleLogout() {
     logout();
-};
+}
 
+// --- App Functions ---
 function showApp() {
     splashScreen.style.display = 'none';
     appContainer.style.display = 'flex';
@@ -131,27 +120,8 @@ function updateProfileUI() {
     }
 }
 
-
-// Event Listeners
-userInput.addEventListener('input', function () {
-    this.style.height = 'auto';
-    this.style.height = (this.scrollHeight) + 'px';
-    sendBtn.disabled = this.value.trim() === '' || isGenerating;
-});
-
-userInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        if (!isGenerating) sendMessage();
-    }
-});
-
-sendBtn.addEventListener('click', sendMessage);
-stopBtn.addEventListener('click', stopGenerating);
-toggleSidebarBtn.addEventListener('click', () => sidebar.classList.toggle('open'));
-
-// Chat Functions
-window.createNewChat = () => {
+// --- Chat Functions ---
+function createNewChat() {
     currentChatId = Date.now().toString();
     chatContainer.innerHTML = `
         <div class="welcome-screen">
@@ -168,28 +138,28 @@ window.createNewChat = () => {
     chatContainer.classList.remove('has-messages');
     lucide.createIcons();
     sidebar.classList.remove('open');
-};
+}
 
-window.setInputValue = (text) => {
+function setInputValue(text) {
     userInput.value = text;
     userInput.dispatchEvent(new Event('input'));
     userInput.focus();
-};
+}
 
-window.stopGenerating = () => {
+function stopGenerating() {
     if (abortController) {
         abortController.abort();
         isGenerating = false;
         sendBtn.disabled = userInput.value.trim() === '';
         stopBtn.style.display = 'none';
     }
-};
+}
 
-window.sendMessage = async () => {
+async function sendMessage() {
     const text = userInput.value.trim();
     if (!text || isGenerating) return;
 
-    // UI Updates - Show User Message Immediately so they feel heard
+    // UI Updates - Show User Message Immediately
     const welcomeScreen = document.querySelector('.welcome-screen');
     if (welcomeScreen) {
         welcomeScreen.remove();
@@ -272,7 +242,75 @@ window.sendMessage = async () => {
         stopBtn.style.display = 'none';
         scrollToBottom();
     }
-};
+}
+
+function loadChat(id) {
+    currentChatId = id;
+    const chat = chats.find(c => c.id === id);
+    if (!chat) return;
+    chatContainer.innerHTML = '';
+    chatContainer.classList.add('has-messages');
+    chat.messages.forEach(m => addMessageToUI(m.content, m.role === 'user'));
+    renderHistory();
+    scrollToBottom();
+    sidebar.classList.remove('open');
+}
+
+function deleteChat(e, id) {
+    e.stopPropagation();
+    if (confirm('Delete this chat?')) {
+        chats = chats.filter(c => c.id !== id);
+        updateStorage();
+        if (currentChatId === id) {
+            if (chats.length > 0) loadChat(chats[0].id);
+            else createNewChat();
+        } else {
+            renderHistory();
+        }
+    }
+}
+
+function clearAllChats() {
+    if (confirm('Delete all chats?')) {
+        chats = [];
+        updateStorage();
+        createNewChat();
+        renderHistory();
+    }
+}
+
+// --- Helper Functions ---
+function getActiveChat() {
+    return chats.find(c => c.id === currentChatId);
+}
+
+function updateStorage() {
+    localStorage.setItem('talkzen_chats', JSON.stringify(chats));
+}
+
+function scrollToBottom() {
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `
+        <i data-lucide="${type === 'success' ? 'check-circle' : type === 'error' ? 'alert-circle' : 'info'}"></i>
+        <span>${message}</span>
+    `;
+    toastContainer.appendChild(toast);
+    lucide.createIcons();
+
+    setTimeout(() => {
+        toast.classList.add('show');
+    }, 10);
+
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
 
 function addMessageToUI(text, isUser, isLoading = false) {
     const row = document.createElement('div');
@@ -308,7 +346,7 @@ function attachCodeCopy() {
     lucide.createIcons();
 }
 
-window.copyCode = (btn) => {
+function copyCode(btn) {
     const code = btn.closest('pre').querySelector('code').innerText;
     navigator.clipboard.writeText(code).then(() => {
         const span = btn.querySelector('span');
@@ -320,27 +358,31 @@ window.copyCode = (btn) => {
             btn.classList.remove('copied');
         }, 2000);
     });
-};
+}
 
 async function streamText(element, text) {
     let currentIdx = 0;
     const words = text.split(' ');
+    const interval = setInterval(() => {
+        if (!isGenerating) {
+            clearInterval(interval);
+            return;
+        }
+        if (currentIdx < words.length) {
+            element.innerHTML = formatText(words.slice(0, currentIdx + 1).join(' '));
+            currentIdx++;
+            scrollToBottom();
+        } else {
+            clearInterval(interval);
+        }
+    }, 30);
     return new Promise(resolve => {
-        const interval = setInterval(() => {
-            if (!isGenerating) {
-                clearInterval(interval);
-                resolve();
-                return;
-            }
-            if (currentIdx < words.length) {
-                element.innerHTML = formatText(words.slice(0, currentIdx + 1).join(' '));
-                currentIdx++;
-                scrollToBottom();
-            } else {
-                clearInterval(interval);
+        const checkInterval = setInterval(() => {
+            if (currentIdx >= words.length || !isGenerating) {
+                clearInterval(checkInterval);
                 resolve();
             }
-        }, 30);
+        }, 100);
     });
 }
 
@@ -355,6 +397,7 @@ function formatText(text) {
 }
 
 async function getGeminiResponse(query, history) {
+    // ... same logic ...
     const contents = [
         { role: 'user', parts: [{ text: SYSTEM_PROMPT }] },
         { role: 'model', parts: [{ text: "Understood. I am TalkZen-AI, ready to assist." }] },
@@ -390,69 +433,45 @@ function renderHistory() {
     lucide.createIcons();
 }
 
-window.loadChat = (id) => {
-    currentChatId = id;
-    const chat = chats.find(c => c.id === id);
-    if (!chat) return;
-    chatContainer.innerHTML = '';
-    chatContainer.classList.add('has-messages');
-    chat.messages.forEach(m => addMessageToUI(m.content, m.role === 'user'));
-    renderHistory();
-    scrollToBottom();
-    sidebar.classList.remove('open');
-};
-
-window.deleteChat = (e, id) => {
-    e.stopPropagation();
-    if (confirm('Delete this chat?')) {
-        chats = chats.filter(c => c.id !== id);
-        updateStorage();
-        if (currentChatId === id) {
-            if (chats.length > 0) loadChat(chats[0].id);
-            else createNewChat();
-        } else {
-            renderHistory();
-        }
+function checkAuthInit() {
+    currentUser = checkAuth();
+    if (currentUser) {
+        showApp();
     }
-};
+}
 
-window.clearAllChats = () => {
-    if (confirm('Delete all chats?')) {
-        chats = [];
-        updateStorage();
-        createNewChat();
-        renderHistory();
+// --- Attach to Window (Export) ---
+window.showLoginModal = showLoginModal;
+window.hideLoginModal = hideLoginModal;
+window.handleLogin = handleLogin;
+window.handleGuestAccess = handleGuestAccess;
+window.handleLogout = handleLogout;
+window.createNewChat = createNewChat;
+window.setInputValue = setInputValue;
+window.stopGenerating = stopGenerating;
+window.sendMessage = sendMessage;
+window.loadChat = loadChat;
+window.deleteChat = deleteChat;
+window.clearAllChats = clearAllChats;
+window.copyCode = copyCode;
+
+// --- Event Listeners with Local References ---
+userInput.addEventListener('input', function () {
+    this.style.height = 'auto';
+    this.style.height = (this.scrollHeight) + 'px';
+    sendBtn.disabled = this.value.trim() === '' || isGenerating;
+});
+
+userInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (!isGenerating) sendMessage();
     }
-};
+});
 
-function getActiveChat() {
-    return chats.find(c => c.id === currentChatId);
-}
+sendBtn.addEventListener('click', sendMessage);
+stopBtn.addEventListener('click', stopGenerating);
+toggleSidebarBtn.addEventListener('click', () => sidebar.classList.toggle('open'));
 
-function updateStorage() {
-    localStorage.setItem('talkzen_chats', JSON.stringify(chats));
-}
-
-function scrollToBottom() {
-    chatContainer.scrollTop = chatContainer.scrollHeight;
-}
-
-function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.innerHTML = `
-        <i data-lucide="${type === 'success' ? 'check-circle' : type === 'error' ? 'alert-circle' : 'info'}"></i>
-        <span>${message}</span>
-    `;
-    toastContainer.appendChild(toast);
-    lucide.createIcons();
-
-    setTimeout(() => {
-        toast.classList.add('show');
-    }, 10);
-
-    setTimeout(() => {
-        toast.classList.remove('show');
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
-}
+// Run Init
+checkAuthInit();
