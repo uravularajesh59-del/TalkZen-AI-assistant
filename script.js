@@ -1,5 +1,5 @@
 // API Configuration
-let GEMINI_API_KEY = localStorage.getItem('talkzen_api_key') || 'YOUR_API_KEY_HERE';
+let GEMINI_API_KEY = localStorage.getItem('talkzen_api_key') || '';
 const getApiUrl = () => `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 // System Prompt
@@ -33,6 +33,7 @@ const sidebar = document.querySelector('.sidebar');
 const historyList = document.getElementById('history-list');
 const settingsModal = document.getElementById('settings-modal');
 const apiKeyInput = document.getElementById('api-key-input');
+const toastContainer = document.getElementById('toast-container'); // New
 
 // Initialization
 lucide.createIcons();
@@ -43,8 +44,13 @@ if (chats.length > 0) {
     createNewChat();
 }
 
-// Populate API Key if exists
-if (GEMINI_API_KEY !== 'YOUR_API_KEY_HERE') {
+// Check for API Key on load
+if (!GEMINI_API_KEY) {
+    setTimeout(() => {
+        showToast('Please set your Gemini API Key in Settings to start.', 'info');
+        toggleSettingsModal(true);
+    }, 1000);
+} else {
     apiKeyInput.value = GEMINI_API_KEY;
 }
 
@@ -70,7 +76,7 @@ toggleSidebarBtn.addEventListener('click', () => sidebar.classList.toggle('open'
 function toggleSettingsModal(show) {
     settingsModal.classList.toggle('active', show);
     if (show) {
-        apiKeyInput.value = GEMINI_API_KEY === 'YOUR_API_KEY_HERE' ? '' : GEMINI_API_KEY;
+        apiKeyInput.value = GEMINI_API_KEY;
     }
 }
 
@@ -92,10 +98,30 @@ function saveSettings() {
         GEMINI_API_KEY = newKey;
         localStorage.setItem('talkzen_api_key', newKey);
         toggleSettingsModal(false);
-        alert('Settings saved successfully!');
+        showToast('Configuration saved successfully!', 'success');
     } else {
-        alert('Please enter a valid API key.');
+        showToast('Please enter a valid API key.', 'error');
     }
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `
+        <i data-lucide="${type === 'success' ? 'check-circle' : type === 'error' ? 'alert-circle' : 'info'}"></i>
+        <span>${message}</span>
+    `;
+    toastContainer.appendChild(toast);
+    lucide.createIcons();
+
+    setTimeout(() => {
+        toast.classList.add('show');
+    }, 10);
+
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
 }
 
 function createNewChat() {
@@ -136,9 +162,9 @@ async function sendMessage() {
     const text = userInput.value.trim();
     if (!text || isGenerating) return;
 
-    if (GEMINI_API_KEY === 'YOUR_API_KEY_HERE') {
+    if (!GEMINI_API_KEY) {
         toggleSettingsModal(true);
-        alert('Please set your Gemini API Key in Settings first.');
+        showToast('Please configure your API Key first.', 'error');
         return;
     }
 
