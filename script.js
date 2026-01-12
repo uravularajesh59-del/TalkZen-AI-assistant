@@ -173,9 +173,19 @@ async function sendMessage() {
     scrollToBottom();
 
     if (!GEMINI_API_KEY) {
+        // Auto-detect if user is trying to paste the key
+        if (text.trim().startsWith('AIza')) {
+            const key = text.trim();
+            localStorage.setItem('talkzen_api_key', key);
+            GEMINI_API_KEY = key;
+            addMessageToUI("🔑 **API Key Detected!**\n\nSaving your key and reloading...", false);
+            setTimeout(() => window.location.reload(), 2000);
+            return;
+        }
+
         // Show error as a simulated AI message
         setTimeout(() => {
-            const errorMsg = "⚠️ **System Error:** API Key is missing.\n\nThe Admin must paste the Google Gemini API Key into the configuration to enable responses.";
+            const errorMsg = "⚠️ **System Error:** API Key is missing.\n\n**To fix this immediately:**\n1. Copy your Google Gemini API Key.\n2. **PASTE IT HERE** in this chat.\n\nI will automatically save it for you.";
             addMessageToUI(errorMsg, false);
             scrollToBottom();
         }, 500);
