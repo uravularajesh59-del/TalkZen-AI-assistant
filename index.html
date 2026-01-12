@@ -23,7 +23,46 @@
 </head>
 
 <body>
-    <div class="app-container">
+    <!-- Splash / Landing Screen -->
+    <div id="splash-screen" class="splash-screen">
+        <div class="splash-content">
+            <div class="splash-logo">
+                <img src="logo.png" alt="TalkZen Logo">
+            </div>
+            <h1>TalkZen AI</h1>
+            <p>Your serene, professional AI assistant.</p>
+            <div class="splash-actions">
+                <button class="primary-btn" onclick="showLoginModal()">Login</button>
+                <button class="secondary-btn" onclick="handleGuestAccess()">Continue as Guest</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Modal -->
+    <div id="login-modal" class="modal-overlay">
+        <div class="modal-content auth-modal">
+            <div class="modal-header auth-header">
+                <h2>Welcome Back</h2>
+                <button class="icon-btn close-modal" onclick="hideLoginModal()">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-group">
+                    <input type="email" id="login-email" placeholder="Email Address" value="admin@talkzen.com">
+                    <input type="password" id="login-password" placeholder="Password" value="admin">
+                </div>
+                <div class="settings-actions">
+                    <button class="save-btn" onclick="handleLogin()">Login</button>
+                </div>
+                <p class="auth-footer">Don't have an account? <a href="#"
+                        onclick="alert('Sign up is currently closed.')">Sign up</a></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App (Hidden by default) -->
+    <div id="app-container" class="app-container" style="display: none;">
         <aside class="sidebar">
             <div class="sidebar-header">
                 <div class="logo">
@@ -49,17 +88,13 @@
                 </div>
             </nav>
             <div class="sidebar-footer">
-                <button class="footer-btn" onclick="toggleSettingsModal(true)">
-                    <i data-lucide="settings"></i>
-                    <span>Settings</span>
-                </button>
-                <div class="admin-profile">
-                    <div class="admin-avatar">A</div>
+                <div class="admin-profile" onclick="handleLogout()">
+                    <div class="admin-avatar" id="user-avatar">U</div>
                     <div class="admin-info">
-                        <span class="admin-name">Admin User</span>
-                        <span class="admin-status">Pro Account</span>
+                        <span class="admin-name" id="user-name">User</span>
+                        <span class="admin-status" id="user-status">Free Plan</span>
                     </div>
-                    <i data-lucide="more-horizontal" size="16"></i>
+                    <i data-lucide="log-out" size="16"></i>
                 </div>
             </div>
         </aside>
@@ -82,7 +117,7 @@
                     <div class="welcome-icon">
                         <i data-lucide="bot" size="48"></i>
                     </div>
-                    <h2>How can I help you today, Admin?</h2>
+                    <h2>How can I help you today?</h2>
                     <div class="suggestion-grid">
                         <button class="suggestion-card" onclick="setInputValue('Write a professional email')">
                             <span>Write a professional email</span>
@@ -118,29 +153,10 @@
         </main>
     </div>
 
-    <!-- Login / Auth Modal -->
-    <div id="settings-modal" class="modal-overlay">
-        <div class="modal-content auth-modal">
-            <div class="modal-header auth-header">
-                <h2>Welcome Back</h2>
-            </div>
-            <div class="modal-body">
-                <div class="settings-group">
-                    <div class="api-input-wrapper">
-                        <input type="password" id="api-key-input" placeholder="Enter your Access Key...">
-                    </div>
-                </div>
-                <div class="settings-actions">
-                    <button class="save-btn" onclick="saveSettings()">Start Chatting</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
-    <script src="script.js"></script>
+    <script type="module" src="script.js"></script>
 </body>
 
 </html>

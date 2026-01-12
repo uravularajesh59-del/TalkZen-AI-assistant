@@ -1,7 +1,8 @@
-// API Configuration
-// You can hardcode your key here to bypass the login screen
-const DEFAULT_API_KEY = '';
-let GEMINI_API_KEY = DEFAULT_API_KEY || localStorage.getItem('talkzen_api_key');
+import { API_KEY } from './config.js';
+import { checkAuth, login, loginAsGuest, logout } from './auth.js';
+
+// Configuration
+const GEMINI_API_KEY = API_KEY;
 const getApiUrl = () => `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 // System Prompt
@@ -12,6 +13,11 @@ let chats = JSON.parse(localStorage.getItem('talkzen_chats')) || [];
 let currentChatId = null;
 let isGenerating = false;
 let abortController = null;
+let currentUser = null;
+
+// Guest Limits
+const GUEST_MSG_LIMIT = 5;
+let guestMsgCount = parseInt(localStorage.getItem('talkzen_guest_count') || '0');
 
 // Configure Marked
 marked.setOptions({
@@ -33,27 +39,91 @@ const stopBtn = document.getElementById('stop-btn');
 const toggleSidebarBtn = document.getElementById('toggle-sidebar');
 const sidebar = document.querySelector('.sidebar');
 const historyList = document.getElementById('history-list');
-const settingsModal = document.getElementById('settings-modal');
-const apiKeyInput = document.getElementById('api-key-input');
-const toastContainer = document.getElementById('toast-container'); // New
+const toastContainer = document.getElementById('toast-container');
+const splashScreen = document.getElementById('splash-screen');
+const appContainer = document.getElementById('app-container');
+const loginModal = document.getElementById('login-modal');
 
 // Initialization
 lucide.createIcons();
-renderHistory();
-if (chats.length > 0) {
-    loadChat(chats[0].id);
-} else {
-    createNewChat();
+
+// Auth Check on Load
+function initApp() {
+    currentUser = checkAuth();
+    if (currentUser) {
+        showApp();
+    } else {
+        // Show Splash (default)
+    }
 }
 
-// Check for API Key on load
-if (!GEMINI_API_KEY) {
-    // Show Login Modal
-    toggleSettingsModal(true);
-} else {
-    // If key exists, ensure modal is hidden
-    toggleSettingsModal(false);
+initApp();
+
+// Auth Functions (Attached to Window for HTML access)
+window.showLoginModal = () => {
+    loginModal.classList.add('active');
+};
+
+window.hideLoginModal = () => {
+    loginModal.classList.remove('active');
+};
+
+window.handleLogin = () => {
+    const email = document.getElementById('login-email').value;
+    const password = document.getElementById('login-password').value;
+
+    const result = login(email, password);
+    if (result.success) {
+        currentUser = result.user;
+        showToast(`Welcome back, ${currentUser.name}`, 'success');
+        hideLoginModal();
+        showApp();
+    } else {
+        showToast(result.message, 'error');
+    }
+};
+
+window.handleGuestAccess = () => {
+    currentUser = loginAsGuest();
+    showToast('Entered as Guest', 'info');
+    showApp();
+};
+
+window.handleLogout = () => {
+    logout();
+};
+
+function showApp() {
+    splashScreen.style.display = 'none';
+    appContainer.style.display = 'flex';
+    updateProfileUI();
+    renderHistory();
+    if (chats.length > 0) {
+        loadChat(chats[0].id);
+    } else {
+        createNewChat();
+    }
 }
+
+function updateProfileUI() {
+    const avatar = document.getElementById('user-avatar');
+    const name = document.getElementById('user-name');
+    const status = document.getElementById('user-status');
+
+    if (currentUser) {
+        name.innerText = currentUser.name;
+        if (currentUser.type === 'admin') {
+            avatar.innerText = 'A';
+            status.innerText = 'Pro Account';
+            status.style.color = '#4cd964';
+        } else {
+            avatar.innerText = 'G';
+            status.innerText = 'Guest Mode';
+            status.style.color = '#a0a0a0';
+        }
+    }
+}
+
 
 // Event Listeners
 userInput.addEventListener('input', function () {
@@ -73,52 +143,13 @@ sendBtn.addEventListener('click', sendMessage);
 stopBtn.addEventListener('click', stopGenerating);
 toggleSidebarBtn.addEventListener('click', () => sidebar.classList.toggle('open'));
 
-// Auth Modal Functions
-function toggleSettingsModal(show) {
-    settingsModal.classList.toggle('active', show);
-    if (show) {
-        apiKeyInput.focus();
-    }
-}
-
-function saveSettings() {
-    const newKey = apiKeyInput.value.trim();
-    if (newKey) {
-        GEMINI_API_KEY = newKey;
-        localStorage.setItem('talkzen_api_key', newKey);
-        toggleSettingsModal(false);
-        showToast('Welcome to TalkZen-AI', 'success');
-    } else {
-        showToast('Please enter a valid Access Key.', 'error');
-    }
-}
-
-function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.innerHTML = `
-        <i data-lucide="${type === 'success' ? 'check-circle' : type === 'error' ? 'alert-circle' : 'info'}"></i>
-        <span>${message}</span>
-    `;
-    toastContainer.appendChild(toast);
-    lucide.createIcons();
-
-    setTimeout(() => {
-        toast.classList.add('show');
-    }, 10);
-
-    setTimeout(() => {
-        toast.classList.remove('show');
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
-}
-
-function createNewChat() {
+// Chat Functions
+window.createNewChat = () => {
     currentChatId = Date.now().toString();
     chatContainer.innerHTML = `
         <div class="welcome-screen">
             <div class="welcome-icon"><i data-lucide="bot" size="48"></i></div>
-            <h2>How can I help you today, Admin?</h2>
+            <h2>How can I help you today?</h2>
             <div class="suggestion-grid">
                 <button class="suggestion-card" onclick="setInputValue('Write a JavaScript function to sort an array')"><span>Code a JS function</span></button>
                 <button class="suggestion-card" onclick="setInputValue('Translate this to Telugu: How are you today?')"><span>Telugu Translation</span></button>
@@ -130,31 +161,41 @@ function createNewChat() {
     chatContainer.classList.remove('has-messages');
     lucide.createIcons();
     sidebar.classList.remove('open');
-}
+};
 
-function setInputValue(text) {
+window.setInputValue = (text) => {
     userInput.value = text;
     userInput.dispatchEvent(new Event('input'));
     userInput.focus();
-}
+};
 
-function stopGenerating() {
+window.stopGenerating = () => {
     if (abortController) {
         abortController.abort();
         isGenerating = false;
         sendBtn.disabled = userInput.value.trim() === '';
         stopBtn.style.display = 'none';
     }
-}
+};
 
-async function sendMessage() {
+window.sendMessage = async () => {
     const text = userInput.value.trim();
     if (!text || isGenerating) return;
 
     if (!GEMINI_API_KEY) {
-        toggleSettingsModal(true);
-        showToast('Please configure your API Key first.', 'error');
+        showToast('System Error: API Configuration Missing.', 'error');
+        // We do not ask for key anymore on UI
         return;
+    }
+
+    if (currentUser.type === 'guest') {
+        if (guestMsgCount >= GUEST_MSG_LIMIT) {
+            showToast('Guest limit reached. Please Login.', 'info');
+            showLoginModal();
+            return;
+        }
+        guestMsgCount++;
+        localStorage.setItem('talkzen_guest_count', guestMsgCount);
     }
 
     if (!getActiveChat() || currentChatId === null) {
@@ -208,17 +249,7 @@ async function sendMessage() {
 
         let errorMessage = 'Error: ' + error.message;
         if (error.message.includes('quota') || error.message.includes('429')) {
-            errorMessage = `
-                <div class="error-tip">
-                    <strong><i data-lucide="alert-triangle"></i> Quota Exceeded</strong>
-                    <p>It looks like you've reached the free tier limits of the Gemini API.</p>
-                    <ul>
-                        <li>Wait 1-2 minutes and try again.</li>
-                        <li>Check your usage at <a href="https://aistudio.google.com/" target="_blank">Google AI Studio</a>.</li>
-                        <li>Consider switching to a pay-as-you-go plan if you need more volume.</li>
-                    </ul>
-                </div>
-            `;
+            errorMessage = 'System is currently busy. Please try again later.';
         }
         addMessageToUI(errorMessage, false);
     } finally {
@@ -227,7 +258,7 @@ async function sendMessage() {
         stopBtn.style.display = 'none';
         scrollToBottom();
     }
-}
+};
 
 function addMessageToUI(text, isUser, isLoading = false) {
     const row = document.createElement('div');
@@ -263,7 +294,7 @@ function attachCodeCopy() {
     lucide.createIcons();
 }
 
-function copyCode(btn) {
+window.copyCode = (btn) => {
     const code = btn.closest('pre').querySelector('code').innerText;
     navigator.clipboard.writeText(code).then(() => {
         const span = btn.querySelector('span');
@@ -275,7 +306,7 @@ function copyCode(btn) {
             btn.classList.remove('copied');
         }, 2000);
     });
-}
+};
 
 async function streamText(element, text) {
     let currentIdx = 0;
@@ -345,7 +376,7 @@ function renderHistory() {
     lucide.createIcons();
 }
 
-function loadChat(id) {
+window.loadChat = (id) => {
     currentChatId = id;
     const chat = chats.find(c => c.id === id);
     if (!chat) return;
@@ -355,9 +386,9 @@ function loadChat(id) {
     renderHistory();
     scrollToBottom();
     sidebar.classList.remove('open');
-}
+};
 
-function deleteChat(e, id) {
+window.deleteChat = (e, id) => {
     e.stopPropagation();
     if (confirm('Delete this chat?')) {
         chats = chats.filter(c => c.id !== id);
@@ -369,16 +400,16 @@ function deleteChat(e, id) {
             renderHistory();
         }
     }
-}
+};
 
-function clearAllChats() {
+window.clearAllChats = () => {
     if (confirm('Delete all chats?')) {
         chats = [];
         updateStorage();
         createNewChat();
         renderHistory();
     }
-}
+};
 
 function getActiveChat() {
     return chats.find(c => c.id === currentChatId);
@@ -392,3 +423,22 @@ function scrollToBottom() {
     chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `
+        <i data-lucide="${type === 'success' ? 'check-circle' : type === 'error' ? 'alert-circle' : 'info'}"></i>
+        <span>${message}</span>
+    `;
+    toastContainer.appendChild(toast);
+    lucide.createIcons();
+
+    setTimeout(() => {
+        toast.classList.add('show');
+    }, 10);
+
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
