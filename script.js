@@ -2,7 +2,8 @@ import { API_KEY } from './config.js';
 import { checkAuth, login, loginAsGuest, logout } from './auth.js';
 
 // Configuration
-const GEMINI_API_KEY = API_KEY;
+// Configuration
+let GEMINI_API_KEY = API_KEY || localStorage.getItem('talkzen_api_key');
 const getApiUrl = () => `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 // System Prompt
