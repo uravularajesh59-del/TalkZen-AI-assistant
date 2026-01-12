@@ -24,19 +24,35 @@
 
 <body>
     <!-- Splash / Landing Screen -->
+    <!-- Splash / Landing Screen -->
     <div id="splash-screen" class="splash-screen">
         <div class="splash-content">
             <div class="splash-logo">
                 <img src="logo.png" alt="TalkZen Logo">
             </div>
             <h1>TalkZen AI</h1>
-            <p>Your serene, professional AI assistant. <span style="font-size: 0.8rem; opacity: 0.6;">(v3.0
-                    Debug)</span></p>
+            <p>Your serene, professional AI assistant. <span style="font-size: 0.8rem; opacity: 0.6;">(v4.1
+                    Final)</span></p>
             <div class="splash-actions">
                 <button class="primary-btn" onclick="showLoginModal()">Login</button>
                 <button class="secondary-btn" onclick="handleGuestAccess()">Continue as Guest</button>
             </div>
         </div>
+        <!-- Inline Error Handler -->
+        <script>
+            window.onerror = function (msg, url, line, col, error) {
+                // Ignore innocuous errors
+                if (msg.includes('ResizeObserver')) return;
+
+                alert("CRITICAL ERROR:\n" + msg + "\n\nLine: " + line);
+
+                // Fallback: Enable buttons just in case
+                document.querySelectorAll('button').forEach(b => b.disabled = false);
+            };
+            window.addEventListener('unhandledrejection', function (event) {
+                alert("PROMISE ERROR:\n" + event.reason);
+            });
+        </script>
     </div>
 
     <!-- Login Modal -->
@@ -148,8 +164,8 @@
                         </button>
                     </div>
                 </div>
-                <!-- Version 4.0 Stable -->
-                <p class="disclaimer">TalkZen-AI Assistant (v4.0 Stable) can make mistakes. Consider checking important
+                <!-- Version 4.1 Final -->
+                <p class="disclaimer">TalkZen-AI Assistant (v4.1 Final) can make mistakes. Consider checking important
                     information.
                 </p>
             </footer>
@@ -159,7 +175,7 @@
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
-    <script type="module" src="main.js"></script>
+    <script type="module" src="main.js?v=4.1"></script>
 </body>
 
 </html>
