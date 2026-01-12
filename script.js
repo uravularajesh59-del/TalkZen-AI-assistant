@@ -243,9 +243,11 @@ async function sendMessage() {
         if (loadingMsg) loadingMsg.remove();
 
         let errorMessage = 'Error: ' + error.message;
-        if (error.message.includes('quota') || error.message.includes('429')) {
-            errorMessage = 'System is currently busy. Please try again later.';
-        }
+        // DEBUG MODE: Showing raw error
+        // if (error.message.includes('quota') || error.message.includes('429')) {
+        //     errorMessage = 'System is currently busy. Please try again later.';
+        // }
+        errorMessage += '\n\n(Debug: ' + new Date().toLocaleTimeString() + ')';
         addMessageToUI(errorMessage, false);
     } finally {
         isGenerating = false;
