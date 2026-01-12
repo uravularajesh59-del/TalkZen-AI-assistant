@@ -110,6 +110,13 @@ function updateProfileUI() {
     const name = document.getElementById('user-name');
     const status = document.getElementById('user-status');
 
+    // Ensure logout button area is clickable and visible for everyone
+    const profileDiv = document.querySelector('.admin-profile');
+    if (profileDiv) {
+        profileDiv.style.cursor = 'pointer';
+        profileDiv.title = "Click to Log Out / Go Back";
+    }
+
     if (currentUser) {
         name.innerText = currentUser.name;
         if (currentUser.type === 'admin') {
@@ -118,7 +125,7 @@ function updateProfileUI() {
             status.style.color = '#4cd964';
         } else {
             avatar.innerText = 'G';
-            status.innerText = 'Guest Mode';
+            status.innerText = 'Guest Mode (Click to Exit)';
             status.style.color = '#a0a0a0';
         }
     }
@@ -182,16 +189,35 @@ window.sendMessage = async () => {
     const text = userInput.value.trim();
     if (!text || isGenerating) return;
 
+    // UI Updates - Show User Message Immediately so they feel heard
+    const welcomeScreen = document.querySelector('.welcome-screen');
+    if (welcomeScreen) {
+        welcomeScreen.remove();
+        chatContainer.classList.add('has-messages');
+    }
+
+    addMessageToUI(text, true);
+    userInput.value = '';
+    userInput.style.height = 'auto';
+    scrollToBottom();
+
     if (!GEMINI_API_KEY) {
-        showToast('System Error: API Configuration Missing.', 'error');
-        // We do not ask for key anymore on UI
+        // Show error as a simulated AI message
+        setTimeout(() => {
+            const errorMsg = "⚠️ **System Error:** API Key is missing.\n\nThe Admin must paste the Google Gemini API Key into the configuration to enable responses.";
+            addMessageToUI(errorMsg, false);
+            scrollToBottom();
+        }, 500);
         return;
     }
 
     if (currentUser.type === 'guest') {
         if (guestMsgCount >= GUEST_MSG_LIMIT) {
-            showToast('Guest limit reached. Please Login.', 'info');
-            showLoginModal();
+            setTimeout(() => {
+                addMessageToUI("🔒 **Guest Limit Reached**\n\nPlease login to continue chatting.", false);
+                showLoginModal();
+                scrollToBottom();
+            }, 500);
             return;
         }
         guestMsgCount++;
@@ -209,18 +235,6 @@ window.sendMessage = async () => {
     sendBtn.disabled = true;
     stopBtn.style.display = 'flex';
     abortController = new AbortController();
-
-    // UI Updates
-    const welcomeScreen = document.querySelector('.welcome-screen');
-    if (welcomeScreen) {
-        welcomeScreen.remove();
-        chatContainer.classList.add('has-messages');
-    }
-
-    addMessageToUI(text, true);
-    userInput.value = '';
-    userInput.style.height = 'auto';
-    scrollToBottom();
 
     const loadingMsg = addMessageToUI('', false, true);
     scrollToBottom();
