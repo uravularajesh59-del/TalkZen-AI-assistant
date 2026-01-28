@@ -3,7 +3,7 @@ import { checkAuth, login, loginAsGuest, logout } from './auth.js';
 
 // Configuration
 let GEMINI_API_KEY = API_KEY || localStorage.getItem('talkzen_api_key');
-let currentModel = localStorage.getItem('talkzen_model') || 'gemini-1.5-flash-latest';
+let currentModel = localStorage.getItem('talkzen_model') || 'gemini-2.5-flash-latest';
 const getApiUrl = () => `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${GEMINI_API_KEY}`;
 
 // System Prompt
